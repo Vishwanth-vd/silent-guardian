@@ -47,3 +47,32 @@ def reverse_geocode(lat, lon):
             return data.get('display_name', "Unknown Location")
     except Exception as e:
         return f"GPS Location ({lat:.4f}, {lon:.4f})"
+
+@st.cache_data
+def geocode_address(address_text):
+    """
+    Fetches [lon, lat] from an address string using OpenStreetMap Nominatim API.
+    Returns None if not found or error.
+    """
+    if not address_text or len(address_text) < 3:
+        return None
+        
+    try:
+        import urllib.request
+        import urllib.parse
+        import json
+        
+        encoded_address = urllib.parse.quote(address_text)
+        url = f"https://nominatim.openstreetmap.org/search?q={encoded_address}&format=json&limit=1"
+        req = urllib.request.Request(url, headers={'User-Agent': 'SilentGuardianAI/1.0'})
+        
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode())
+            if data and len(data) > 0:
+                # OSM returns lat/lon as strings
+                return [float(data[0]['lon']), float(data[0]['lat'])]
+            return None
+    except Exception as e:
+        # print(f"Geocoding error: {e}")
+        return None
+
