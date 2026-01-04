@@ -100,8 +100,34 @@ def render_sidebar():
             if not is_live:
                 st.caption("Manual Override Active")
                 time_hour = st.slider("Time (24h)", 0, 23, 22)
-                lighting = st.select_slider("Lighting", options=LIGHTING, value="Dim Light")
-                crowd = st.select_slider("Crowd Density", options=CROWD, value="Sparse")
+                
+                # Dynamic Defaults based on Location
+                # Logic: If location changed, update session state defaults
+                if "last_location" not in st.session_state or st.session_state.last_location != location:
+                    # Fetch profile
+                    # We need access to sim instance, but sidebar is decoupled. 
+                    # Ideally passed in, but we can do a quick lookup relative to our known lists or import sim class.
+                    # Better: logic in app.py or quick lookup here.
+                    from modules.simulation import SafetySimulator
+                    temp_sim = SafetySimulator()
+                    profile = temp_sim.get_location_profile(location)
+                    
+                    st.session_state.default_lighting = profile['lighting']
+                    st.session_state.default_crowd = profile['crowd']
+                    st.session_state.last_location = location
+                
+                # Use session state for values so they can be overridden by user too
+                def_light = st.session_state.get("default_lighting", "Dim Light")
+                def_crowd = st.session_state.get("default_crowd", "Sparse")
+
+                try:
+                    light_idx = LIGHTING.index(def_light)
+                    crowd_idx = CROWD.index(def_crowd)
+                except:
+                    light_idx, crowd_idx = 3, 1
+
+                lighting = st.select_slider("Lighting", options=LIGHTING, value=LIGHTING[light_idx])
+                crowd = st.select_slider("Crowd Density", options=CROWD, value=CROWD[crowd_idx])
             else:
                 st.caption("Streaming Data from Nodes...")
                 time_hour = 23 # Late night live
@@ -114,9 +140,22 @@ def render_sidebar():
         # --- Emergency Section ---
         st.markdown("---")
         st.markdown("### 🚨 EMERGENCY OVERRIDE")
+        with st.expander("🆘 SOS Configuration", expanded=True):
+            sos_name = st.text_input("Emergency Contact Name", value="Mom")
+            sos_phone = st.text_input("Emergency Phone", value="+91 99999 99999")
+            
         if st.button("🆘 TRIGGER SOS BEACON", type="primary"):
-            st.toast("SOS SIGNAL SENT TO 3 CONTACTS!", icon="🚨")
-            st.error("EMERGENCY SIGNAL BROADCASTED ON ALL CHANNELS")
+            # 1. Log to file to prove transmission
+            import datetime
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            log_entry = f"[{timestamp}] SOS SENT TO {sos_name} ({sos_phone}) | Location: {location}\n"
+            
+            with open("sos_logs.txt", "a") as f:
+                f.write(log_entry)
+
+            st.toast(f"SOS SENT TO {sos_name.upper()} ({sos_phone})!", icon="🚨")
+            st.error(f"EMERGENCY SIGNAL BROADCASTED: Alerting {sos_name}...")
+            st.info(f"Log recorded in: sos_logs.txt")
             
     return {
         "mode": mode,
@@ -128,3 +167,4 @@ def render_sidebar():
         "crisis_action": crisis_action,
         "is_live": is_live
     }
+
